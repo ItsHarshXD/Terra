@@ -41,8 +41,17 @@ public class BukkitWorldHandle implements WorldHandle {
     @Override
     public synchronized @NotNull BlockState createBlockState(@NotNull String data) {
         org.bukkit.block.data.BlockData bukkitData = Bukkit.createBlockData(
-            data); // somehow bukkit managed to make this not thread safe! :)
+            stripBlockEntityData(data)); // somehow bukkit managed to make this not thread safe! :)
         return BukkitBlockState.newInstance(bukkitData);
+    }
+
+    /**
+     * Bukkit's BlockData parser only accepts a block state. Terra block state strings may also
+     * contain trailing block entity data, which Bukkit applies separately when possible.
+     */
+    static String stripBlockEntityData(String data) {
+        int blockEntityDataStart = data.indexOf('{');
+        return blockEntityDataStart < 0 ? data : data.substring(0, blockEntityDataStart);
     }
 
     @Override
