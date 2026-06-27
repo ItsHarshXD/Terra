@@ -17,6 +17,7 @@
 
 package com.dfsek.terra.bukkit.generator;
 
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.BlockPopulator;
@@ -27,7 +28,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Random;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
 
 import com.dfsek.terra.api.block.state.BlockState;
 import com.dfsek.terra.api.config.ConfigPack;
@@ -39,6 +43,9 @@ import com.dfsek.terra.bukkit.world.BukkitWorldProperties;
 
 public class BukkitChunkGeneratorWrapper extends org.bukkit.generator.ChunkGenerator implements GeneratorWrapper {
     private static final Logger LOGGER = LoggerFactory.getLogger(BukkitChunkGeneratorWrapper.class);
+    private static final int SPAWN_SEARCH_ATTEMPTS = 64;
+    private static final int SPAWN_SEARCH_RADIUS = 256;
+
     private final BlockState air;
     private final BukkitBlockPopulator blockPopulator;
     private ChunkGenerator delegate;
@@ -86,6 +93,45 @@ public class BukkitChunkGeneratorWrapper extends org.bukkit.generator.ChunkGener
     @Override
     public boolean shouldGenerateMobs() {
         return true;
+    }
+
+    @Override
+    public @Nullable Location getFixedSpawnLocation(@NotNull World world, @NotNull Random random) {
+        WorldProperties properties = new BukkitWorldProperties(world);
+        com.dfsek.terra.api.world.biome.generation.BiomeProvider biomeProvider = pack.getBiomeProvider();
+
+        for(int attempt = 0; attempt < SPAWN_SEARCH_ATTEMPTS; attempt++) {
+            int x = attempt == 0 ? 0 : random.nextInt(-SPAWN_SEARCH_RADIUS, SPAWN_SEARCH_RADIUS + 1);
+            int z = attempt == 0 ? 0 : random.nextInt(-SPAWN_SEARCH_RADIUS, SPAWN_SEARCH_RADIUS + 1);
+            OptionalInt spawnY = findSpawnY(properties.getMinHeight(), properties.getMaxHeight(),
+                y -> delegate.getBlock(properties, x, y, z, biomeProvider),
+                BlockState::isAir,
+                state -> state.getBlockType().isSolid());
+
+            if(spawnY.isPresent()) return new Location(world, x, spawnY.getAsInt(), z);
+        }
+
+        LOGGER.warn("No safe fixed spawn found for world '{}'; falling back to the server spawn search", world.getName());
+        return null;
+    }
+
+    static <T> OptionalInt findSpawnY(int minHeight, int maxHeight, IntFunction<T> blockAt,
+                                     Predicate<T> isAir, Predicate<T> isSolid) {
+        if(maxHeight - minHeight < 3) return OptionalInt.empty();
+
+        T head = blockAt.apply(maxHeight - 1);
+        T feet = blockAt.apply(maxHeight - 2);
+
+        for(int groundY = maxHeight - 3; groundY >= minHeight; groundY--) {
+            T ground = blockAt.apply(groundY);
+            if(isSolid.test(ground) && isAir.test(feet) && isAir.test(head)) {
+                return OptionalInt.of(groundY + 1);
+            }
+            head = feet;
+            feet = ground;
+        }
+
+        return OptionalInt.empty();
     }
 
     @Override
