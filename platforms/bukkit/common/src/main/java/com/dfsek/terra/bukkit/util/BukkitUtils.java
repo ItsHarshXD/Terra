@@ -1,33 +1,45 @@
 package com.dfsek.terra.bukkit.util;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.data.BlockData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Locale;
 
 import com.dfsek.terra.api.entity.EntityType;
 import com.dfsek.terra.bukkit.world.entity.BukkitEntityType;
 
 
 public class BukkitUtils {
-    private static final Logger logger = LoggerFactory.getLogger(BukkitUtils.class);
-
     public static boolean isLiquid(BlockData blockState) {
         Material material = blockState.getMaterial();
         return material == Material.WATER || material == Material.LAVA;
     }
 
-    public static EntityType getEntityType(String id) {
-        if(!id.startsWith("minecraft:")) throw new IllegalArgumentException("Invalid entity identifier " + id);
-        String entityID = id.toUpperCase(Locale.ROOT).substring(10);
+    public static EntityType getEntityType(String data) {
+        NamespacedKey key = parseEntityKey(data);
+        org.bukkit.entity.EntityType entityType = RegistryAccess.registryAccess()
+            .getRegistry(RegistryKey.ENTITY_TYPE)
+            .get(key);
+        if(entityType == null) throw new IllegalArgumentException("Invalid entity identifier " + data);
 
-        return new BukkitEntityType(switch(entityID) {
-            case "END_CRYSTAL" -> org.bukkit.entity.EntityType.END_CRYSTAL;
-            case "ENDER_CRYSTAL" -> throw new IllegalArgumentException(
-                "Invalid entity identifier " + id); // make sure this issue can't happen the other way around.
-            default -> org.bukkit.entity.EntityType.valueOf(entityID);
-        });
+        return new BukkitEntityType(entityType);
+    }
+
+    static NamespacedKey parseEntityKey(String data) {
+        NamespacedKey key = NamespacedKey.fromString(stripEntityData(data));
+        if(key == null || !NamespacedKey.MINECRAFT.equals(key.namespace())) {
+            throw new IllegalArgumentException("Invalid entity identifier " + data);
+        }
+        return key;
+    }
+
+    /**
+     * Bukkit entity types are registry keys and cannot represent the optional entity data accepted
+     * by TerraScript.
+     */
+    static String stripEntityData(String data) {
+        int entityDataStart = data.indexOf('{');
+        return entityDataStart < 0 ? data : data.substring(0, entityDataStart);
     }
 }

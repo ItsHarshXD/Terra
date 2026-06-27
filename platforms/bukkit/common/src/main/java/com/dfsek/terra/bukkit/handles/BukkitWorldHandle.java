@@ -47,7 +47,7 @@ public class BukkitWorldHandle implements WorldHandle {
 
     /**
      * Bukkit's BlockData parser only accepts a block state. Terra block state strings may also
-     * contain trailing block entity data, which Bukkit applies separately when possible.
+     * contain trailing block entity data, which cannot be represented by Bukkit's BlockData.
      */
     static String stripBlockEntityData(String data) {
         int blockEntityDataStart = data.indexOf('{');
