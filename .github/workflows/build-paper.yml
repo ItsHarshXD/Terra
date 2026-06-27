@@ -1,0 +1,37 @@
+name: Build Paper JAR
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Terra for Paper
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Paper JAR
+        run: ./gradlew :platforms:bukkit:shadowJar --no-daemon
+
+      - name: Upload Paper JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: Terra-Paper-${{ github.sha }}
+          path: platforms/bukkit/build/libs/Terra-bukkit*-shaded.jar
+          if-no-files-found: error
